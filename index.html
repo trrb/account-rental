@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Аренда аккаунта — доступ и таймер</title>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root{
+      --bg:#0f1220;
+      --card:#171a2b;
+      --fg:#ffffff;
+      --muted:#b7c0d6;
+      --accent:#7dd3fc;
+      --danger:#ff6b6b;
+      --ok:#78ffd6;
+      --barbg:#2a2e48;
+      --shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 800px at 20% 10%, #1a1f38 0%, #0f1220 60%, #0c0f1a 100%);
+      color:var(--fg); display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .card{
+      width:min(720px, 100%); background:var(--card); border-radius:20px; padding:24px;
+      box-shadow:var(--shadow)
+    }
+    h1{font-size:22px; margin:0 0 8px}
+    p{margin:0 0 12px; color:var(--muted)}
+    .row{display:grid; grid-template-columns:140px 1fr auto; gap:12px; align-items:center; margin:10px 0}
+    .label{opacity:.85}
+    .val{display:flex; align-items:center; gap:8px}
+    input.cred{
+      width:100%; padding:10px 12px; border-radius:12px; border:1px solid #2e3554; background:#0f1326; color:#e7ecff;
+      font-size:16px; letter-spacing:.3px
+    }
+    .btn{
+      border:0; border-radius:12px; padding:10px 12px; cursor:pointer; font-weight:600;
+      background:#22305a; color:#e7ecff;
+    }
+    .btn:hover{filter:brightness(1.08)}
+    .btn:active{transform:translateY(1px)}
+    .btn.link{background:#1f2937}
+    .timerBox{
+      margin-top:16px; background:#0f1326; border:1px solid #2e3554; border-radius:16px; padding:16px;
+    }
+    .time{
+      font-size:40px; font-variant-numeric: tabular-nums; letter-spacing:.5px; text-align:center; margin:8px 0 0;
+    }
+    .trow{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:var(--muted)}
+    .bar{height:10px; background:var(--barbg); border-radius:999px; overflow:hidden; margin-top:12px}
+    .fill{height:100%; width:0%; background:linear-gradient(90deg, #6ea8fe, #78ffd6)}
+    .warn{color:var(--danger); font-weight:600}
+    .ok{color:var(--ok)}
+    .footer{margin-top:16px; font-size:12px; opacity:.8; text-align:center}
+    @media (max-width:640px){
+      .row{grid-template-columns:1fr; gap:8px}
+      .btn{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>Доступ к арендованному аккаунту</h1>
+    <p>Скопируйте логин и пароль. Таймер покажет оставшееся время. После окончания аренды доступ будет закрыт.</p>
+
+    <section aria-label="Учётные данные">
+      <div class="row">
+        <div class="label">Логин</div>
+        <div class="val"><input id="login" class="cred" type="text" readonly></div>
+        <button id="copyLogin" class="btn" type="button">Скопировать</button>
+      </div>
+      <div class="row">
+        <div class="label">Пароль</div>
+        <div class="val">
+          <input id="pass" class="cred" type="password" readonly>
+        </div>
+        <div class="val" style="gap:8px">
+          <button id="togglePass" class="btn" type="button">Показать</button>
+          <button id="copyPass" class="btn" type="button">Скопировать</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="timerBox" aria-label="Таймер аренды">
+      <div class="trow">
+        <div>Окончание аренды: <b id="endAt">—</b></div>
+        <div>Статус: <b id="status" class="ok">Таймер активен</b></div>
+      </div>
+      <div class="time" id="time">--:--:--</div>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+    </section>
+
+    <div class="footer">Не передавайте эти данные третьим лицам. Если есть вопросы — ответьте продавцу в чате.</div>
+  </main>
+
+  <script>
+    (function(){
+      const $ = (id)=>document.getElementById(id);
+      const qs = new URLSearchParams(location.search);
+
+      const login = qs.get("login") || "";
+      const pass = qs.get("pass") || "";
+      const endStr = qs.get("end") || "";
+      const startStr = qs.get("start") || "";
+      const durationMin = Number(qs.get("dur") || NaN);
+
+      $("login").value = login;
+      $("pass").value = pass;
+
+      const end = endStr ? new Date(endStr) : null;
+      const start = startStr ? new Date(startStr) : null;
+
+      if (!login || !pass || !end || isNaN(end.getTime())) {
+        $("status").textContent = "Ошибка ссылки";
+        $("status").className = "warn";
+        $("time").textContent = "—";
+        $("endAt").textContent = "—";
+        return;
+      }
+
+      try {
+        $("endAt").textContent = end.toLocaleString(undefined, {
+          year:"numeric", month:"2-digit", day:"2-digit",
+          hour:"2-digit", minute:"2-digit", second:"2-digit"
+        });
+      } catch (e) {
+        $("endAt").textContent = end.toISOString();
+      }
+
+      let totalMs = NaN;
+      if (!isNaN(durationMin)) {
+        totalMs = durationMin * 60 * 1000;
+      } else if (start && !isNaN(start.getTime())) {
+        totalMs = end - start;
+      }
+
+      async function copy(text){
+        try{
+          await navigator.clipboard.writeText(text);
+          return true;
+        }catch(e){
+          const t = document.createElement('textarea');
+          t.value = text; document.body.appendChild(t);
+          t.select(); document.execCommand('copy'); document.body.removeChild(t);
+          return true;
+        }
+      }
+      $("copyLogin").onclick = async ()=>{
+        await copy(login);
+        $("copyLogin").textContent = "✔ Скопировано";
+        setTimeout(()=>$("copyLogin").textContent = "Скопировать", 1500);
+      };
+      $("copyPass").onclick = async ()=>{
+        await copy(pass);
+        $("copyPass").textContent = "✔ Скопировано";
+        setTimeout(()=>$("copyPass").textContent = "Скопировать", 1500);
+      };
+      $("togglePass").onclick = ()=>{
+        const el = $("pass");
+        if (el.type === "password") {
+          el.type = "text";
+          $("togglePass").textContent = "Скрыть";
+        } else {
+          el.type = "password";
+          $("togglePass").textContent = "Показать";
+        }
+      };
+
+      function fmt(ms){
+        const s = Math.max(0, Math.floor(ms/1000));
+        const h = String(Math.floor(s/3600)).padStart(2,"0");
+        const m = String(Math.floor((s%3600)/60)).padStart(2,"0");
+        const sec = String(s%60).padStart(2,"0");
+        return `${h}:${m}:${sec}`;
+      }
+      function tick(){
+        const left = end - Date.now();
+        const timeEl = $("time");
+        const fillEl = $("fill");
+        const statusEl = $("status");
+
+        if (left <= 0){
+          timeEl.textContent = "00:00:00";
+          statusEl.textContent = "Время аренды истекло";
+          statusEl.className = "warn";
+          fillEl.style.width = "100%";
+          $("pass").value = "••••••••";
+          $("togglePass").disabled = true;
+          $("copyPass").disabled = true;
+          return;
+        }
+
+        timeEl.textContent = fmt(left);
+
+        if (!isNaN(totalMs) && totalMs > 0){
+          const done = 1 - (left / totalMs);
+          const pct = Math.min(Math.max(done,0),1) * 100;
+          fillEl.style.width = pct.toFixed(1) + "%";
+        } else {
+          const twoHrs = 2*60*60*1000;
+          const approxDone = 1 - (left / twoHrs);
+          fillEl.style.width = (Math.min(Math.max(approxDone,0),1)*100).toFixed(1) + "%";
+        }
+
+        if (left <= 5*60*1000) {
+          statusEl.textContent = "Скоро окончание (менее 5 мин)";
+          statusEl.className = "warn";
+        } else {
+          statusEl.textContent = "Таймер активен";
+          statusEl.className = "ok";
+        }
+
+        requestAnimationFrame(tick);
+      }
+      tick();
+    })();
+  </script>
+</body>
+</html>

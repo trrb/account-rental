@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Аренда аккаунта</title>
+  <style>
+    body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;
+         height:100vh;margin:0;background:#0f1220;color:#fff}
+    .card{background:#171a2b;padding:20px;border-radius:12px;max-width:420px;width:100%;
+          box-shadow:0 8px 25px rgba(0,0,0,.4);text-align:center}
+    h1{margin:0 0 15px}
+    input{width:100%;padding:10px;margin:8px 0;border:1px solid #333;border-radius:8px;
+          background:#0f1326;color:#fff;font-size:16px;text-align:center}
+    button{margin-top:8px;padding:10px 14px;border:0;border-radius:8px;background:#2d4aa3;
+           color:#fff;cursor:pointer;font-weight:bold}
+    .timer{font-size:32px;margin-top:20px}
+    .status{margin-top:8px;font-size:14px;opacity:.8}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Ваш аккаунт</h1>
+    <input id="login" readonly>
+    <button onclick="copyText('login')">Скопировать логин</button>
+    <input id="pass" type="password" readonly>
+    <button onclick="togglePass()">Показать пароль</button>
+    <button onclick="copyText('pass')">Скопировать пароль</button>
+    <div class="timer" id="time">--:--:--</div>
+    <div class="status" id="status">Таймер активен</div>
+  </div>
+
+<script>
+  const qs = new URLSearchParams(location.search);
+  const login = qs.get("login")||"demoUser";
+  const pass  = qs.get("pass")||"demoPass";
+  const end   = new Date(qs.get("end")||Date.now()+3600*1000);
+
+  document.getElementById("login").value = login;
+  document.getElementById("pass").value  = pass;
+
+  function copyText(id){
+    const el=document.getElementById(id);
+    el.select();document.execCommand("copy");
+    alert("Скопировано: "+el.value);
+  }
+  function togglePass(){
+    const el=document.getElementById("pass");
+    el.type = el.type==="password" ? "text":"password";
+  }
+  function tick(){
+    let left=end-Date.now();
+    if(left<=0){
+      document.getElementById("time").textContent="00:00:00";
+      document.getElementById("status").textContent="Время аренды истекло";
+      document.getElementById("pass").value="••••••••";
+      return;
+    }
+    let s=Math.floor(left/1000);
+    let h=String(Math.floor(s/3600)).padStart(2,"0");
+    let m=String(Math.floor((s%3600)/60)).padStart(2,"0");
+    let sec=String(s%60).padStart(2,"0");
+    document.getElementById("time").textContent=`${h}:${m}:${sec}`;
+    setTimeout(tick,1000);
+  }
+  tick();
+</script>
+</body>
+</html>
